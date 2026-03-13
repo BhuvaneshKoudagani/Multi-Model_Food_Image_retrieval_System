@@ -224,3 +224,116 @@ function closeLightbox() {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeLightbox();
 });
+
+
+// ── Food Details ──────────────────────────────────────────────────────────────
+const DETAILS_API = 'http://127.0.0.1:5001';
+
+async function getFoodDetails() {
+  const food = document.getElementById('detailsInput').value.trim();
+  if (!food) { showError('details', 'Please enter a food name.'); return; }
+  clearError('details');
+
+  // Hide retrieval results, show loading
+  document.getElementById('resultsSection').classList.remove('show');
+  document.getElementById('detailsSection').classList.remove('show');
+  showLoading(`Generating "${food}" image and analysing with AI… (may take ~30s)`);
+
+  try {
+    const r = await fetch(`${DETAILS_API}/api/food-details`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ food_name: food })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Server error');
+    renderFoodDetails(d);
+  } catch (e) {
+    showError('details', e.message);
+  } finally {
+    hideLoading();
+  }
+}
+
+function renderFoodDetails({ image_b64, details }) {
+  const imgSrc = `data:image/jpeg;base64,${image_b64}`;
+
+  // Image
+  document.getElementById('detailsImg').src = imgSrc;
+
+  // Name + cuisine
+  document.getElementById('detailsName').textContent = details.name || '—';
+  document.getElementById('detailsCuisine').textContent = details.cuisine || '';
+  document.getElementById('detailsDesc').textContent = details.description || '';
+
+  // Stats
+  document.getElementById('statCalories').textContent =
+    details.calories?.per_serving ? details.calories.per_serving + ' kcal' : '—';
+  document.getElementById('statPrice').textContent =
+    details.price?.restaurant || '—';
+  document.getElementById('statHomemade').textContent =
+    details.price?.homemade || '—';
+  document.getElementById('statTime').textContent =
+    details.prep_time || '—';
+
+  // Serving size
+  if (details.calories?.serving_size) {
+    document.getElementById('servingSize').textContent =
+      `per ${details.calories.serving_size}`;
+  }
+
+  // Nutrition
+  const nutr = details.nutrition || {};
+  const nutritionGrid = document.getElementById('nutritionGrid');
+  nutritionGrid.innerHTML = '';
+  const nutrItems = [
+    { label: 'Protein',  val: nutr.protein,       unit: 'g' },
+    { label: 'Carbs',    val: nutr.carbohydrates,  unit: 'g' },
+    { label: 'Fat',      val: nutr.fat,            unit: 'g' },
+    { label: 'Fiber',    val: nutr.fiber,          unit: 'g' },
+    { label: 'Sugar',    val: nutr.sugar,          unit: 'g' },
+  ];
+  nutrItems.forEach(n => {
+    nutritionGrid.innerHTML += `
+      <div class="nutr-item">
+        <div class="nutr-val">${n.val || '—'}${n.val ? n.unit : ''}</div>
+        <div class="nutr-label">${n.label}</div>
+      </div>`;
+  });
+
+  // Ingredients
+  const ingList = document.getElementById('ingredientsList');
+  ingList.innerHTML = '';
+  (details.main_ingredients || []).forEach(i => {
+    ingList.innerHTML += `<span class="ingredient-chip">${i}</span>`;
+  });
+
+  // Allergens
+  const allList = document.getElementById('allergensList');
+  allList.innerHTML = '';
+  if (details.allergens?.length) {
+    details.allergens.forEach(a => {
+      allList.innerHTML += `<span class="allergen-chip">⚠️ ${a}</span>`;
+    });
+    document.getElementById('allergensCard').style.display = 'block';
+  } else {
+    document.getElementById('allergensCard').style.display = 'none';
+  }
+
+  // Health tags
+  const tagsEl = document.getElementById('detailsTags');
+  tagsEl.innerHTML = '';
+  (details.health_tags || []).forEach(t => {
+    tagsEl.innerHTML += `<span class="details-tag green">${t}</span>`;
+  });
+  const courseTag = details.course || details.cuisine;
+  if (courseTag) tagsEl.innerHTML += `<span class="details-tag">${courseTag}</span>`;
+
+  // Fun fact
+  document.getElementById('funFact').textContent = details.fun_fact || '';
+
+  // Show section
+  document.getElementById('detailsSection').classList.add('show');
+  document.getElementById('detailsSection')
+    .scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
