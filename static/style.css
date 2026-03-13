@@ -360,3 +360,155 @@ footer {
   margin-top: 4rem;
 }
 footer span { color: var(--accent); }
+
+/* ── Food Details Tab ── */
+.tab-details {
+  background: linear-gradient(135deg, #1a2a1a, #0f1f0f);
+  border-color: #2d4a2d;
+  color: #7ab87a;
+}
+.tab-details:hover { border-color: #5a9e5a; color: #aadeaa; }
+.tab-details.active {
+  background: linear-gradient(135deg, #4a9e4a, #2d7a2d);
+  border-color: transparent; color: #fff;
+}
+
+.btn-details {
+  background: linear-gradient(135deg, #4a9e4a, #2d7a2d);
+  color: #fff; padding: 0.9rem 2rem;
+  border-radius: var(--radius); border: none;
+  cursor: pointer; font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem; font-weight: 600;
+  transition: all 0.2s; display: flex;
+  align-items: center; gap: 0.5rem; white-space: nowrap;
+}
+.btn-details:hover { opacity: 0.88; transform: translateY(-1px); }
+.btn-details:active { transform: translateY(0); }
+
+.details-intro {
+  display: flex; align-items: flex-start; gap: 1rem;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1.2rem;
+}
+.details-intro-icon { font-size: 2rem; flex-shrink: 0; }
+
+/* ── Details Results Section ── */
+.details-section {
+  display: none; margin-top: 2.5rem;
+  animation: fadeUp 0.5s ease both;
+}
+.details-section.show { display: block; }
+
+.details-layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .details-layout { grid-template-columns: 1fr; }
+}
+
+.details-image-col img {
+  width: 100%; border-radius: var(--radius);
+  border: 1px solid var(--border);
+  object-fit: cover; cursor: zoom-in;
+  transition: transform 0.2s;
+}
+.details-image-col img:hover { transform: scale(1.02); }
+
+.details-tags {
+  display: flex; flex-wrap: wrap; gap: 0.4rem;
+  margin-top: 0.8rem;
+}
+.details-tag {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 999px; padding: 0.25rem 0.7rem;
+  font-size: 0.72rem; color: var(--muted);
+}
+.details-tag.green {
+  background: rgba(74,158,74,0.12);
+  border-color: rgba(74,158,74,0.3);
+  color: #7ab87a;
+}
+
+.details-name-row {
+  display: flex; align-items: center;
+  flex-wrap: wrap; gap: 0.8rem;
+  margin-bottom: 0.2rem;
+}
+.details-cuisine-badge {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #0a0a0a; padding: 0.2rem 0.8rem;
+  border-radius: 999px; font-size: 0.72rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+
+/* Stats row */
+.details-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem; margin-bottom: 1.2rem;
+}
+@media (max-width: 600px) {
+  .details-stats { grid-template-columns: repeat(2, 1fr); }
+}
+.stat-box {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 0.9rem 0.6rem;
+  text-align: center;
+}
+.stat-icon { font-size: 1.3rem; margin-bottom: 0.3rem; }
+.stat-val {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.1rem; font-weight: 700;
+  color: var(--accent); margin-bottom: 0.2rem;
+}
+.stat-label { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+
+/* Sub-cards inside details */
+.details-card {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1rem 1.2rem;
+  margin-bottom: 0.9rem;
+}
+.details-card h4 {
+  font-size: 0.82rem; text-transform: uppercase;
+  letter-spacing: 0.1em; color: var(--muted);
+  margin-bottom: 0.75rem; font-weight: 600;
+}
+
+.nutrition-grid {
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.5rem;
+}
+@media (max-width: 500px) {
+  .nutrition-grid { grid-template-columns: repeat(3, 1fr); }
+}
+.nutr-item { text-align: center; }
+.nutr-val {
+  font-weight: 700; font-size: 1rem; color: var(--text);
+}
+.nutr-label { font-size: 0.68rem; color: var(--muted); margin-top: 0.1rem; }
+
+.ingredients-list {
+  display: flex; flex-wrap: wrap; gap: 0.4rem;
+}
+.ingredient-chip {
+  background: rgba(232,160,69,0.1); border: 1px solid rgba(232,160,69,0.25);
+  border-radius: 999px; padding: 0.25rem 0.75rem;
+  font-size: 0.8rem; color: var(--accent);
+}
+
+.allergens-list {
+  display: flex; flex-wrap: wrap; gap: 0.4rem;
+}
+.allergen-chip {
+  background: rgba(199,91,58,0.1); border: 1px solid rgba(199,91,58,0.3);
+  border-radius: 999px; padding: 0.25rem 0.75rem;
+  font-size: 0.8rem; color: #e88;
+}
+
+.fun-fact-card {
+  border-color: rgba(232,160,69,0.2);
+  background: rgba(232,160,69,0.04);
+}
