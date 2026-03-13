@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FoodLens — Multimodal Food Retrieval</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <span class="logo-main">FoodLens</span>
+    <span class="logo-sub">Multimodal Retrieval</span>
+  </div>
+  <div class="status-pill">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">Connecting…</span>
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <h1>Find Food by <em>Sight</em> or <em>Words</em></h1>
+    <p>Upload a photo, describe a dish, or generate one — CLIP ViT finds the most visually similar foods instantly.</p>
+  </div>
+
+  <!-- Mode Tabs -->
+  <div class="mode-tabs">
+    <button class="tab active" data-mode="image" onclick="switchMode('image')">
+      🖼️ Image Search
+    </button>
+    <button class="tab" data-mode="text" onclick="switchMode('text')">
+      📝 Text Search
+    </button>
+    <button class="tab" data-mode="generate" onclick="switchMode('generate')">
+      ✨ Generate & Find
+    </button>
+  </div>
+
+  <!-- Mode 1: Image -->
+  <div class="panel active card" id="panel-image">
+    <div class="upload-zone" id="uploadZone">
+        <label for="imageFile">Upload Food Image:</label>
+      <input type="file" id="imageFile" accept="image/*" onchange="onFileSelect(event)" />
+      <div class="upload-icon">📷</div>
+      <p><strong>Click to upload</strong> or drag &amp; drop a food image</p>
+      <p style="margin-top:0.3rem; font-size:0.8rem;">JPG, PNG supported</p>
+      <img id="previewImg" class="preview-img" alt="preview" />
+    </div>
+    <div style="margin-top:1.2rem; display:flex; justify-content:flex-end;">
+      <button class="btn btn-primary" id="btnImageSearch" onclick="searchByImage()" disabled>
+        🔍 Find Similar Foods
+      </button>
+    </div>
+    <div class="error-box" id="err-image"></div>
+  </div>
+
+  <!-- Mode 2: Text -->
+  <div class="panel card" id="panel-text">
+    <div class="search-row">
+      <input
+        class="search-input"
+        id="textInput"
+        placeholder="e.g. spicy margherita pizza, creamy tiramisu…"
+        onkeydown="if(event.key==='Enter') searchByText()"
+      />
+      <button class="btn btn-primary" onclick="searchByText()">
+        🔍 Search
+      </button>
+    </div>
+    <div class="error-box" id="err-text"></div>
+  </div>
+
+  <!-- Mode 3: Generate -->
+  <div class="panel card" id="panel-generate">
+    <p style="color:var(--muted); font-size:0.88rem; margin-bottom:1rem;">
+      Type a food name → FLUX generates a photorealistic image → CLIP finds visually similar foods from the dataset.
+    </p>
+    <div class="search-row">
+      <input
+        class="search-input"
+        id="generateInput"
+        placeholder="e.g. tiramisu, pad thai, beef burger…"
+        onkeydown="if(event.key==='Enter') generateAndSearch()"
+      />
+      <button class="btn btn-primary" onclick="generateAndSearch()">
+        ✨ Generate &amp; Find
+      </button>
+    </div>
+    <div class="error-box" id="err-generate"></div>
+  </div>
+
+  <!-- Loading -->
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <p id="loadingMsg">Processing…</p>
+  </div>
+
+  <!-- Results -->
+  <div class="results-section" id="resultsSection">
+    <div class="results-header">
+      <h2>Top Matches</h2>
+      <span class="results-count" id="resultsCount"></span>
+    </div>
+    <div class="query-display" id="queryDisplay"></div>
+    <div class="results-grid" id="resultsGrid"></div>
+  </div>
+</main>
+
+<footer>
+  Built with <span>CLIP ViT-B/32</span> · Vision Transformer · FLUX.1-schnell
+</footer>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+  <img id="lightboxImg" src="" alt="" />
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
