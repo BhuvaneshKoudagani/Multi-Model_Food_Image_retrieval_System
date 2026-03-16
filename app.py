@@ -24,7 +24,7 @@ app = Flask(__name__, static_folder="static")
 CORS(app)
 
 # ── Config ────────────────────────────────────────────────────────────────────
-DATASET_PATH  = "dataset"
+DATASET_PATH  = "food-101/images"
 CACHE_FILE    = "embeddings.npy"
 PATHS_CACHE   = "image_paths.npy"
 BATCH_SIZE    = 32
@@ -240,4 +240,4 @@ def status():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(debug=False, port=5000)
