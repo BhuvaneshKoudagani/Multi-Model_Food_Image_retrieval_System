@@ -197,7 +197,7 @@ def generate_and_retrieve():
             return jsonify({"error": "HF_TOKEN not set in .env"}), 400
 
         prompt = (
-            f"ultra-realistic professional food photography of {food_name}, "
+            f"ultra-realistic professional food photography of  {food_name}, "
             "soft studio lighting, shallow depth of field, clean white plate, "
             "garnished beautifully, appetizing, 4k, award-winning"
         )
@@ -206,6 +206,7 @@ def generate_and_retrieve():
             headers={"Authorization": f"Bearer {HF_TOKEN}"},
             json={"inputs": prompt},
             timeout=90
+            
         )
         if resp.status_code == 503:
             return jsonify({"error": "Model loading, wait 20s and retry"}), 503
@@ -224,7 +225,7 @@ def generate_and_retrieve():
             "results"        : results
         })
     except requests.exceptions.Timeout:
-        return jsonify({"error": "FLUX API timed out, try again"}), 504
+        return jsonify({"error": "FLUX API timed out. , try again"}), 504
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
