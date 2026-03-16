@@ -53,7 +53,7 @@ Return ONLY a valid JSON object — no markdown, no explanation, no text before 
 Use this exact structure:
 
 {{
-  "name": "Full official name of the dish",
+  "name": "Full official name of the dish(with popular name here)",
   "description": "3-4 sentence expert description covering the dish origin, cultural significance, flavor profile, texture, and what makes it unique",
   "cuisine": "Specific cuisine type (e.g. Southern Italian, North Indian, Japanese)",
   "course": "Meal course (Appetizer / Main Course / Dessert / Snack)",
