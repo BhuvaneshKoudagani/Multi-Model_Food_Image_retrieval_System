@@ -105,16 +105,81 @@ def pil_to_b64(img: Image.Image) -> str:
     return base64.b64encode(buf.getvalue()).decode()
 
 
+def build_image_prompt(food_name: str) -> str:
+    """
+    Build a precise, food-specific FLUX prompt.
+    Adapts to beverages, raw ingredients, desserts, and cooked meals.
+    Prevents FLUX from adding random garnishes to non-food items like water.
+    """
+    name = food_name.strip().lower()
+
+    # Beverages & drinks — no food garnish whatsoever
+    beverages = [
+        "water", "sparkling water", "mineral water", "juice", "orange juice",
+        "apple juice", "lemonade", "tea", "green tea", "black tea", "iced tea",
+        "coffee", "espresso", "latte", "cappuccino", "americano", "cold brew",
+        "milk", "milkshake", "smoothie", "soda", "cola", "pepsi", "coke",
+        "beer", "wine", "red wine", "white wine", "champagne", "whiskey",
+        "cocktail", "mocktail", "margarita", "mojito", "gin", "vodka", "rum",
+        "hot chocolate", "chai", "matcha", "kombucha", "energy drink",
+    ]
+    if any(b in name for b in beverages):
+        return (
+            f"professional beverage photography of {food_name}, "
+            f"served in an appropriate clean glass or cup, "
+            f"plain white or neutral background, soft studio lighting, "
+            f"photorealistic, no food garnish, no tomatoes, no vegetables, "
+            f"no fruits added unless part of the drink, just the drink, 4k"
+        )
+
+    # Single raw ingredients — minimal clean presentation
+    raw_items = [
+        "egg", "eggs", "rice", "bread", "flour", "sugar", "salt", "butter",
+        "cheese", "cream", "yogurt", "tofu", "noodles", "pasta",
+        "potato", "tomato", "onion", "garlic", "ginger", "carrot", "broccoli",
+        "spinach", "lettuce", "mushroom", "avocado", "banana", "apple",
+        "mango", "strawberry", "blueberry", "orange", "lemon", "lime",
+        "chicken breast", "beef", "pork", "fish", "salmon", "tuna", "shrimp",
+    ]
+    if any(r in name for r in raw_items):
+        return (
+            f"professional food photography of {food_name}, "
+            f"clean minimal presentation on a white surface, "
+            f"soft studio lighting, photorealistic, "
+            f"showing only {food_name} with nothing else added, 4k"
+        )
+
+    # Desserts — elegant plating
+    desserts = [
+        "cake", "ice cream", "gelato", "brownie", "cookie", "donut",
+        "pie", "tart", "pudding", "tiramisu", "cheesecake", "mousse",
+        "macaron", "eclair", "crepe", "waffle", "pancake", "muffin",
+        "cupcake", "pastry", "churro", "baklava", "halwa", "kheer",
+    ]
+    if any(d in name for d in desserts):
+        return (
+            f"professional dessert photography of {food_name}, "
+            f"plated on a clean white plate, soft warm lighting, "
+            f"shallow depth of field, photorealistic, "
+            f"only {food_name} as the subject, no unrelated items, 4k"
+        )
+
+    # Default: cooked dishes — authentic, no random garnishes
+    return (
+        f"professional food photography of authentic {food_name}, "
+        f"traditional presentation in an appropriate dish or bowl, "
+        f"soft studio lighting, shallow depth of field, photorealistic, "
+        f"the dish looks exactly like real {food_name}, "
+        f"no random extra garnishes or unrelated vegetables, 4k"
+    )
+
+
 def generate_image(food_name: str) -> Image.Image:
-    """Generate a professional food image using FLUX.1-schnell."""
+    """Generate a precise food image using FLUX.1-schnell."""
     if not HF_TOKEN:
         raise Exception("HF_TOKEN not set in .env")
 
-    prompt = (
-        f"high quality professional food photography of {food_name}, "
-        "delicious food, realistic, restaurant style plating, "
-        "soft studio lighting, shallow depth of field, 4k"
-    )
+    prompt = build_image_prompt(food_name)
 
     print(f"  Generating image for: {food_name}")
     resp = requests.post(

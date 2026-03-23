@@ -181,12 +181,10 @@ def do_retrieve(query_emb: np.ndarray, top_k=TOP_K):
 dataset_embs, dataset_paths = build_or_load_index()
 
 # ── Routes ────────────────────────────────────────────────────────────────────
-
 @app.route("/")
 def index():
     return send_from_directory("static", "index.html")
 
-# Explicit routes so style.css and app.js load correctly from 127.0.0.1:5000
 @app.route("/style.css")
 def serve_css():
     return send_from_directory("static", "style.css")
@@ -225,6 +223,54 @@ def retrieve_by_text():
         return jsonify({"error": str(e)}), 500
 
 
+def build_flux_prompt(food_name: str) -> str:
+    """
+    Build a precise FLUX prompt based on what the food actually is.
+    Prevents random garnishes/tomatoes being added to drinks or simple items.
+    """
+    name = food_name.strip().lower()
+
+    beverages = [
+        "water", "sparkling water", "mineral water", "juice", "orange juice",
+        "apple juice", "lemonade", "tea", "green tea", "black tea", "iced tea",
+        "coffee", "espresso", "latte", "cappuccino", "americano", "cold brew",
+        "milk", "milkshake", "smoothie", "soda", "cola", "pepsi", "coke",
+        "beer", "wine", "red wine", "white wine", "champagne", "whiskey",
+        "cocktail", "mocktail", "margarita", "mojito", "gin", "vodka", "rum",
+        "hot chocolate", "chai", "matcha", "kombucha", "energy drink",
+    ]
+    if any(b in name for b in beverages):
+        return (
+            f"professional beverage photography of {food_name}, "
+            f"served in an appropriate clean glass or cup, "
+            f"plain white or neutral background, soft studio lighting, "
+            f"photorealistic, no food garnish, no tomatoes, no vegetables, "
+            f"no fruits added unless part of the drink, just the drink, 4k"
+        )
+
+    desserts = [
+        "cake", "ice cream", "gelato", "brownie", "cookie", "donut",
+        "pie", "tart", "pudding", "tiramisu", "cheesecake", "mousse",
+        "macaron", "eclair", "crepe", "waffle", "pancake", "muffin",
+        "cupcake", "pastry", "churro", "baklava", "halwa", "kheer",
+    ]
+    if any(d in name for d in desserts):
+        return (
+            f"professional dessert photography of {food_name}, "
+            f"plated on a clean white plate, soft warm lighting, "
+            f"shallow depth of field, photorealistic, "
+            f"only {food_name} as the subject, no unrelated items, 4k"
+        )
+
+    return (
+        f"ultra-realistic professional food photography of authentic {food_name}, "
+        f"traditional presentation in an appropriate dish, "
+        f"soft studio lighting, shallow depth of field, photorealistic, "
+        f"the dish looks exactly like real {food_name}, "
+        f"no random extra garnishes or unrelated vegetables, 4k"
+    )
+
+
 @app.route("/api/generate", methods=["POST"])
 def generate_and_retrieve():
     try:
@@ -235,11 +281,7 @@ def generate_and_retrieve():
         if not HF_TOKEN:
             return jsonify({"error": "HF_TOKEN not set in .env"}), 400
 
-        prompt = (
-            f"ultra-realistic professional food photography of {food_name}, "
-            "soft studio lighting, shallow depth of field, clean white plate, "
-            "garnished beautifully, appetizing, 4k, award-winning"
-        )
+        prompt = build_flux_prompt(food_name)
         resp = requests.post(
             FLUX_API_URL,
             headers={"Authorization": f"Bearer {HF_TOKEN}"},
