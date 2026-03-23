@@ -3,198 +3,413 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>FoodLens — Multimodal Food Retrieval</title>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="/static/style.css" />
+  <title>FoodLens — Food Image Retrieval System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400&family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-<header>
-  <div class="logo">
-    <span class="logo-main">FoodLens</span>
-    <span class="logo-sub">Multimodal Retrieval</span>
+<!-- ═══════════════════════════════════════════════════════ SPLASH SCREEN -->
+<div id="splash">
+  <div class="splash-bg">
+    <div class="splash-orb splash-orb-1"></div>
+    <div class="splash-orb splash-orb-2"></div>
+    <div class="splash-orb splash-orb-3"></div>
+    <div class="splash-grid"></div>
   </div>
-  <div class="status-pill">
-    <div class="status-dot" id="statusDot"></div>
-    <span id="statusText">Connecting…</span>
-  </div>
-</header>
-
-<main>
-  <div class="hero">
-    <h1>Find Food by <em>Sight</em> or <em>Words</em></h1>
-    <p>Upload a photo, describe a dish, generate one, or explore full food details — all powered by AI.</p>
-  </div>
-
-  <!-- Mode Tabs -->
-  <div class="mode-tabs">
-    <button class="tab active" data-mode="image" onclick="switchMode('image')">🖼️ Image Search</button>
-    <button class="tab" data-mode="text" onclick="switchMode('text')">📝 Text Search</button>
-    <button class="tab" data-mode="generate" onclick="switchMode('generate')">✨ Generate & Find</button>
-    <button class="tab tab-details" data-mode="details" onclick="switchMode('details')">🍽️ Food Details</button>
-  </div>
-
-  <!-- Mode 1: Image -->
-  <div class="panel active card" id="panel-image">
-    <div class="upload-zone" id="uploadZone">
-        
-<input 
-  type="file" id="imageFile" accept="image/*" aria-label="Upload food image" onchange="onFileSelect(event)"
-/>      <div class="upload-icon">📷</div>
-      <p><strong>Click to upload</strong> or drag &amp; drop a food image</p>
-      <p style="margin-top:0.3rem; font-size:0.8rem;">JPG, PNG supported</p>
-      <img id="previewImg" class="preview-img" alt="preview" />
+  <div class="splash-content">
+    <div class="splash-emblem">
+      <svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="40" cy="40" r="36" stroke="url(#sg)" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <circle cx="40" cy="40" r="22" stroke="url(#sg2)" stroke-width="1"/>
+        <path d="M40 18 L40 62 M18 40 L62 40" stroke="url(#sg)" stroke-width="0.8" opacity="0.4"/>
+        <circle cx="40" cy="40" r="8" fill="url(#sg3)"/>
+        <circle cx="40" cy="18" r="2.5" fill="url(#sg)"/>
+        <circle cx="40" cy="62" r="2.5" fill="url(#sg)"/>
+        <circle cx="18" cy="40" r="2.5" fill="url(#sg)"/>
+        <circle cx="62" cy="40" r="2.5" fill="url(#sg)"/>
+        <defs>
+          <linearGradient id="sg" x1="0" y1="0" x2="80" y2="80">
+            <stop offset="0%" stop-color="#f59e0b"/>
+            <stop offset="100%" stop-color="#ef4444"/>
+          </linearGradient>
+          <linearGradient id="sg2" x1="80" y1="0" x2="0" y2="80">
+            <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.3"/>
+            <stop offset="100%" stop-color="#ef4444" stop-opacity="0.3"/>
+          </linearGradient>
+          <radialGradient id="sg3" cx="50%" cy="50%">
+            <stop offset="0%" stop-color="#fbbf24"/>
+            <stop offset="100%" stop-color="#dc2626"/>
+          </radialGradient>
+        </defs>
+      </svg>
     </div>
-    <div style="margin-top:1.2rem; display:flex; justify-content:flex-end;">
-      <button class="btn btn-primary" id="btnImageSearch" onclick="searchByImage()" disabled>
-        🔍 Find Similar Foods
-      </button>
+    <div class="splash-title">
+      <span class="splash-word">FOOD</span>
+      <span class="splash-word delay-1">IMAGE</span>
+      <span class="splash-word delay-2">RETRIEVAL</span>
+      <span class="splash-word delay-3">SYSTEM</span>
     </div>
-    <div class="error-box" id="err-image"></div>
-  </div>
-
-  <!-- Mode 2: Text -->
-  <div class="panel card" id="panel-text">
-    <div class="search-row">
-      <input class="search-input" id="textInput"
-        placeholder="e.g. spicy margherita pizza, creamy tiramisu…"
-        onkeydown="if(event.key==='Enter') searchByText()" />
-      <button class="btn btn-primary" onclick="searchByText()">🔍 Search</button>
-    </div>
-    <div class="error-box" id="err-text"></div>
-  </div>
-
-  <!-- Mode 3: Generate & Find -->
-  <div class="panel card" id="panel-generate">
-    <p style="color:var(--muted); font-size:0.88rem; margin-bottom:1rem;">
-      Type a food name → FLUX generates a photorealistic image → CLIP finds visually similar foods from the dataset.
-    </p>
-    <div class="search-row">
-      <input class="search-input" id="generateInput"
-        placeholder="e.g. tiramisu, pad thai, beef burger…"
-        onkeydown="if(event.key==='Enter') generateAndSearch()" />
-      <button class="btn btn-primary" onclick="generateAndSearch()">✨ Generate &amp; Find</button>
-    </div>
-    <div class="error-box" id="err-generate"></div>
-  </div>
-
-  <!-- Mode 4: Food Details -->
-  <div class="panel card" id="panel-details">
-    <div class="details-intro">
-      <div class="details-intro-icon">🍽️</div>
-      <div>
-        <h3 style="font-family:'Playfair Display',serif; margin-bottom:0.3rem;">Food Details Explorer</h3>
-        <p style="color:var(--muted); font-size:0.88rem;">
-          Type any food name :
-        </p>
-      </div>
-    </div>
-    <div class="search-row" style="margin-top:1.2rem;">
-      <input class="search-input" id="detailsInput"
-        placeholder="e.g. butter chicken, sushi, tiramisu, tacos…"
-        onkeydown="if(event.key==='Enter') getFoodDetails()" />
-      <button class="btn btn-details" onclick="getFoodDetails()">🔬 Analyse Food</button>
-    </div>
-    <div class="error-box" id="err-details"></div>
-  </div>
-
-  <!-- Loading -->
-  <div class="loading" id="loading">
-    <div class="spinner"></div>
-    <p id="loadingMsg">Processing…</p>
-  </div>
-
-  <!-- Retrieval Results -->
-  <div class="results-section" id="resultsSection">
-    <div class="results-header">
-      <h2>Top Matches</h2>
-      <span class="results-count" id="resultsCount"></span>
-    </div>
-    <div class="query-display" id="queryDisplay"></div>
-    <div class="results-grid" id="resultsGrid"></div>
-  </div>
-
-  <!-- Food Details Results -->
-  <div class="details-section" id="detailsSection">
-    <div class="details-layout">
-
-      <!-- Left: Generated image -->
-      <div class="details-image-col">
-        <img id="detailsImg" src="" alt="food" onclick="openLightbox(this.src)" />
-        <div class="details-tags" id="detailsTags"></div>
-      </div>
-
-      <!-- Right: Info -->
-      <div class="details-info-col">
-        <div class="details-name-row">
-          <h2 id="detailsName" style="font-family:'Playfair Display',serif; font-size:1.8rem;"></h2>
-          <span class="details-cuisine-badge" id="detailsCuisine"></span>
-        </div>
-        <p id="detailsDesc" style="color:var(--muted); font-size:0.93rem; line-height:1.6; margin:0.8rem 0 1.2rem;"></p>
-
-        <!-- Stats row -->
-        <div class="details-stats">
-          <div class="stat-box">
-            <div class="stat-icon">🔥</div>
-            <div class="stat-val" id="statCalories">—</div>
-            <div class="stat-label">Calories</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-icon">💰</div>
-            <div class="stat-val" id="statPrice">—</div>
-            <div class="stat-label">Restaurant Price</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-icon">🏠</div>
-            <div class="stat-val" id="statHomemade">—</div>
-            <div class="stat-label">Homemade Cost</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-icon">⏱️</div>
-            <div class="stat-val" id="statTime">—</div>
-            <div class="stat-label">Prep Time</div>
-          </div>
-        </div>
-
-        <!-- Nutrition -->
-        <div class="details-card">
-          <h4>📊 Nutrition Facts <span style="font-weight:400; color:var(--muted); font-size:0.8rem;" id="servingSize"></span></h4>
-          <div class="nutrition-grid" id="nutritionGrid"></div>
-        </div>
-
-        <!-- Ingredients -->
-        <div class="details-card">
-          <h4>🧄 Main Ingredients</h4>
-          <div class="ingredients-list" id="ingredientsList"></div>
-        </div>
-
-        <!-- Allergens -->
-        <div class="details-card" id="allergensCard">
-          <h4>⚠️ Allergens</h4>
-          <div class="allergens-list" id="allergensList"></div>
-        </div>
-
-        <!-- Fun fact -->
-        <div class="details-card fun-fact-card">
-          <h4>💡 Fun Fact</h4>
-          <p id="funFact" style="font-size:0.9rem; line-height:1.6; color:var(--muted);"></p>
-        </div>
-      </div>
+    <p class="splash-sub">Multimodal Intelligence · CLIP · FLUX · Claude AI</p>
+    <div class="splash-bar">
+      <div class="splash-bar-fill"></div>
     </div>
   </div>
-
-</main>
-
-<footer>
-  Built with <span>CLIP ViT-B/32</span> · Vision Transformer · FLUX.1-schnell · Claude AI
-</footer>
-
-<!-- Lightbox -->
-<div class="lightbox" id="lightbox" onclick="closeLightbox()">
-  <button class="lightbox-close" onclick="closeLightbox()">✕</button>
-  <img id="lightboxImg" src="" alt="" />
 </div>
 
-<script src="/static/app.js"></script>
+<!-- ═══════════════════════════════════════════════════════ MAIN APP -->
+<div id="app" class="app-hidden">
+
+  <!-- HEADER -->
+  <header id="appHeader">
+    <div class="hdr-left">
+      <div class="hdr-logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="16" cy="16" r="14" stroke="url(#lg)" stroke-width="1.5"/>
+            <circle cx="16" cy="16" r="5" fill="url(#lg2)"/>
+            <circle cx="16" cy="5" r="2" fill="url(#lg)"/>
+            <circle cx="27" cy="16" r="2" fill="url(#lg)"/>
+            <circle cx="16" cy="27" r="2" fill="url(#lg)"/>
+            <circle cx="5" cy="16" r="2" fill="url(#lg)"/>
+            <defs>
+              <linearGradient id="lg" x1="0" y1="0" x2="32" y2="32">
+                <stop offset="0%" stop-color="#f59e0b"/>
+                <stop offset="100%" stop-color="#ef4444"/>
+              </linearGradient>
+              <radialGradient id="lg2">
+                <stop offset="0%" stop-color="#fbbf24"/>
+                <stop offset="100%" stop-color="#dc2626"/>
+              </radialGradient>
+            </defs>
+          </svg>
+        </div>
+        <div>
+          <div class="logo-name">FoodLens</div>
+          <div class="logo-tagline">Retrieval System</div>
+        </div>
+      </div>
+    </div>
+    <nav class="hdr-nav">
+      <button class="nav-tab active" data-mode="image" onclick="switchMode('image')">
+        <span class="nav-icon">⬡</span> Image
+      </button>
+      <button class="nav-tab" data-mode="text" onclick="switchMode('text')">
+        <span class="nav-icon">⬡</span> Text
+      </button>
+      <button class="nav-tab" data-mode="generate" onclick="switchMode('generate')">
+        <span class="nav-icon">⬡</span> Generate
+      </button>
+      <button class="nav-tab nav-tab-details" data-mode="details" onclick="switchMode('details')">
+        <span class="nav-icon">⬡</span> Details
+      </button>
+    </nav>
+    <div class="hdr-right">
+      <div class="status-capsule" id="statusCapsule">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">Connecting</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT -->
+  <main>
+
+    <!-- ── HERO ── -->
+    <section class="hero-section" id="heroSection">
+      <div class="hero-eyebrow">Major Project · CLIP ViT-B/32 · FLUX.1</div>
+      <h1 class="hero-headline">
+        Discover Food<br/>
+        <em>Visually.</em>
+      </h1>
+      <p class="hero-body">Upload an image, describe a dish, generate one with AI, or explore full nutritional details — powered by multimodal deep learning.</p>
+      <div class="hero-chips">
+        <span class="hero-chip">🔭 CLIP Embeddings</span>
+        <span class="hero-chip">🎨 FLUX Generation</span>
+        <span class="hero-chip">🧠 Claude AI</span>
+        <span class="hero-chip">⚡ Real-time</span>
+      </div>
+    </section>
+
+    <!-- ── PANELS ── -->
+    <div class="panels-wrapper">
+
+      <!-- Panel: Image Search -->
+      <section class="panel active" id="panel-image">
+        <div class="panel-header">
+          <div class="panel-number">01</div>
+          <div>
+            <h2 class="panel-title">Image Search</h2>
+            <p class="panel-desc">Upload a food photo — CLIP encodes it and finds visually similar dishes from the dataset.</p>
+          </div>
+        </div>
+        <div class="upload-zone" id="uploadZone">
+          <input type="file" id="imageFile" accept="image/*" aria-label="Upload food image" onchange="onFileSelect(event)"/>
+          <div class="upload-placeholder" id="uploadPlaceholder">
+            <div class="upload-icon-wrap">
+              <div class="upload-icon-ring"></div>
+              <span class="upload-icon-emoji">📷</span>
+            </div>
+            <p class="upload-main">Drop your food image here</p>
+            <p class="upload-hint">or <strong>click to browse</strong> · JPG, PNG</p>
+          </div>
+          <div class="upload-preview" id="uploadPreview" style="display:none">
+            <img id="previewImg" alt="preview"/>
+            <div class="upload-preview-info">
+              <span class="upload-preview-name" id="previewName"></span>
+              <button class="upload-clear" onclick="clearImage(event)">✕ Remove</button>
+            </div>
+          </div>
+        </div>
+        <div class="panel-footer">
+          <div class="error-box" id="err-image"></div>
+          <button class="btn btn-primary" id="btnImageSearch" onclick="searchByImage()" disabled>
+            <span>Find Similar Foods</span>
+            <span class="btn-arrow">→</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Panel: Text Search -->
+      <section class="panel" id="panel-text">
+        <div class="panel-header">
+          <div class="panel-number">02</div>
+          <div>
+            <h2 class="panel-title">Text Search</h2>
+            <p class="panel-desc">Describe any dish in natural language — CLIP's text encoder maps it to the visual embedding space.</p>
+          </div>
+        </div>
+        <div class="input-group">
+          <label class="input-label">Food Description</label>
+          <div class="input-row">
+            <input class="text-input" id="textInput"
+              placeholder="e.g. spicy margherita pizza, creamy tiramisu, butter chicken…"
+              onkeydown="if(event.key==='Enter') searchByText()"/>
+          </div>
+          <div class="input-suggestions">
+            <span class="sug-label">Try:</span>
+            <button class="sug-chip" onclick="fillText('sushi platter')">sushi platter</button>
+            <button class="sug-chip" onclick="fillText('chocolate lava cake')">chocolate lava cake</button>
+            <button class="sug-chip" onclick="fillText('pad thai noodles')">pad thai noodles</button>
+            <button class="sug-chip" onclick="fillText('biryani rice')">biryani rice</button>
+          </div>
+        </div>
+        <div class="panel-footer">
+          <div class="error-box" id="err-text"></div>
+          <button class="btn btn-primary" onclick="searchByText()">
+            <span>Search Database</span>
+            <span class="btn-arrow">→</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Panel: Generate & Find -->
+      <section class="panel" id="panel-generate">
+        <div class="panel-header">
+          <div class="panel-number">03</div>
+          <div>
+            <h2 class="panel-title">Generate & Find</h2>
+            <p class="panel-desc">Type a food name → FLUX.1 generates a photorealistic image → CLIP finds visually similar foods from the dataset.</p>
+          </div>
+        </div>
+        <div class="gen-pipeline">
+          <div class="gen-step">
+            <div class="gen-step-num">1</div>
+            <div class="gen-step-label">Your Input</div>
+          </div>
+          <div class="gen-arrow">→</div>
+          <div class="gen-step">
+            <div class="gen-step-num">✦</div>
+            <div class="gen-step-label">FLUX Generate</div>
+          </div>
+          <div class="gen-arrow">→</div>
+          <div class="gen-step">
+            <div class="gen-step-num">◎</div>
+            <div class="gen-step-label">CLIP Retrieve</div>
+          </div>
+          <div class="gen-arrow">→</div>
+          <div class="gen-step">
+            <div class="gen-step-num">✓</div>
+            <div class="gen-step-label">Results</div>
+          </div>
+        </div>
+        <div class="input-group">
+          <label class="input-label">Food Name</label>
+          <input class="text-input" id="generateInput"
+            placeholder="e.g. tiramisu, pad thai, beef burger, ramen…"
+            onkeydown="if(event.key==='Enter') generateAndSearch()"/>
+        </div>
+        <div class="panel-footer">
+          <div class="error-box" id="err-generate"></div>
+          <button class="btn btn-generate" onclick="generateAndSearch()">
+            <span>✦ Generate & Find</span>
+            <span class="btn-arrow">→</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Panel: Food Details -->
+      <section class="panel" id="panel-details">
+        <div class="panel-header">
+          <div class="panel-number">04</div>
+          <div>
+            <h2 class="panel-title">Food Details</h2>
+            <p class="panel-desc">Get complete nutritional facts, ingredients, allergens, pricing, and AI-generated imagery for any food.</p>
+          </div>
+        </div>
+        <div class="input-group">
+          <label class="input-label">Food Name</label>
+          <div class="input-row">
+            <input class="text-input" id="detailsInput"
+              placeholder="e.g. butter chicken, sushi, tiramisu, tacos…"
+              onkeydown="if(event.key==='Enter') getFoodDetails()"/>
+          </div>
+          <div class="input-suggestions">
+            <span class="sug-label">Try:</span>
+            <button class="sug-chip" onclick="fillDetails('butter chicken')">butter chicken</button>
+            <button class="sug-chip" onclick="fillDetails('sushi')">sushi</button>
+            <button class="sug-chip" onclick="fillDetails('tiramisu')">tiramisu</button>
+            <button class="sug-chip" onclick="fillDetails('biryani')">biryani</button>
+          </div>
+        </div>
+        <div class="panel-footer">
+          <div class="error-box" id="err-details"></div>
+          <button class="btn btn-details" onclick="getFoodDetails()">
+            <span>🔬 Analyse Food</span>
+            <span class="btn-arrow">→</span>
+          </button>
+        </div>
+      </section>
+
+    </div><!-- /panels-wrapper -->
+
+    <!-- ── LOADING ── -->
+    <div class="loading-overlay" id="loading">
+      <div class="loading-card">
+        <div class="loading-rings">
+          <div class="ring r1"></div>
+          <div class="ring r2"></div>
+          <div class="ring r3"></div>
+          <span class="ring-icon">◎</span>
+        </div>
+        <p class="loading-msg" id="loadingMsg">Processing…</p>
+        <p class="loading-sub">This may take a few seconds</p>
+      </div>
+    </div>
+
+    <!-- ── RETRIEVAL RESULTS ── -->
+    <section class="results-section" id="resultsSection">
+      <div class="results-topbar">
+        <div>
+          <div class="results-eyebrow">Retrieval Output</div>
+          <h2 class="results-title">Top Matches</h2>
+        </div>
+        <span class="results-badge" id="resultsCount"></span>
+      </div>
+      <div class="query-card" id="queryDisplay"></div>
+      <div class="results-grid" id="resultsGrid"></div>
+    </section>
+
+    <!-- ── FOOD DETAILS RESULTS ── -->
+    <section class="details-section" id="detailsSection">
+      <div class="details-topbar">
+        <div class="details-eyebrow">AI Analysis</div>
+        <h2 class="details-title" id="detailsName"></h2>
+        <span class="cuisine-badge" id="detailsCuisine"></span>
+      </div>
+
+      <div class="details-body">
+        <!-- Left col -->
+        <div class="det-left">
+          <div class="det-img-wrap">
+            <img id="detailsImg" src="" alt="food" onclick="openLightbox(this.src)"/>
+            <div class="det-img-overlay">Tap to zoom</div>
+          </div>
+          <div class="details-tags" id="detailsTags"></div>
+          <p class="details-desc" id="detailsDesc"></p>
+        </div>
+
+        <!-- Right col -->
+        <div class="det-right">
+          <!-- Stats -->
+          <div class="stats-row">
+            <div class="stat-tile">
+              <div class="stat-ico">🔥</div>
+              <div class="stat-num" id="statCalories">—</div>
+              <div class="stat-lbl">Calories</div>
+            </div>
+            <div class="stat-tile">
+              <div class="stat-ico">⏱️</div>
+              <div class="stat-num" id="statTime">—</div>
+              <div class="stat-lbl">Prep Time</div>
+            </div>
+            <div class="stat-tile">
+              <div class="stat-ico">💰</div>
+              <div class="stat-num" id="statPrice">—</div>
+              <div class="stat-lbl">Restaurant</div>
+            </div>
+            <div class="stat-tile">
+              <div class="stat-ico">🏠</div>
+              <div class="stat-num" id="statHomemade">—</div>
+              <div class="stat-lbl">Homemade</div>
+            </div>
+          </div>
+
+          <!-- Nutrition -->
+          <div class="info-block">
+            <div class="info-block-hdr">
+              <span>📊 Nutrition Facts</span>
+              <span class="serving-label" id="servingSize"></span>
+            </div>
+            <div class="nutrition-grid" id="nutritionGrid"></div>
+          </div>
+
+          <!-- Ingredients -->
+          <div class="info-block">
+            <div class="info-block-hdr">🧄 Main Ingredients</div>
+            <div class="chip-list" id="ingredientsList"></div>
+          </div>
+
+          <!-- Allergens -->
+          <div class="info-block" id="allergensCard">
+            <div class="info-block-hdr">⚠️ Allergens</div>
+            <div class="chip-list" id="allergensList"></div>
+          </div>
+
+          <!-- Fun fact -->
+          <div class="info-block info-block-accent">
+            <div class="info-block-hdr">💡 Did You Know?</div>
+            <p class="fun-fact-text" id="funFact"></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+      <span class="footer-brand">FoodLens</span>
+      <span class="footer-sep">·</span>
+      <span>CLIP ViT-B/32</span>
+      <span class="footer-sep">·</span>
+      <span>FLUX.1-schnell</span>
+      <span class="footer-sep">·</span>
+      <span>Claude AI</span>
+      <span class="footer-sep">·</span>
+      <span>Major Project 2025</span>
+    </div>
+  </footer>
+
+</div><!-- /app -->
+
+<!-- LIGHTBOX -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <button class="lb-close" onclick="closeLightbox()">✕</button>
+  <img id="lightboxImg" src="" alt=""/>
+</div>
+
+<script src="app.js"></script>
 </body>
 </html>

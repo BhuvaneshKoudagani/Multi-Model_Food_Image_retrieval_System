@@ -12,7 +12,7 @@ import numpy as np
 import torch
 import requests
 from PIL import Image
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, Response
 from flask_cors import CORS
 from sklearn.metrics.pairwise import cosine_similarity
 from transformers import CLIPProcessor, CLIPModel
@@ -21,12 +21,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__, static_folder="static")
-CORS(app)
+CORS(app, origins="*")
 
 # ── Config ────────────────────────────────────────────────────────────────────
 DATASET_PATH  = "food-101/images"
-CACHE_FILE    = "embeddings.npy"
-PATHS_CACHE   = "image_paths.npy"
+CACHE_FILE    = "/Users/kbhuvan/Documents/FoodTextToImage/embeddings.npy"
+PATHS_CACHE   = "/Users/kbhuvan/Documents/FoodTextToImage/image_paths.npy"
 BATCH_SIZE    = 32
 IMG_SIZE      = 128
 TOP_K         = 5
@@ -121,9 +121,38 @@ def embed_image(img: Image.Image) -> np.ndarray:
 
 
 def embed_text(text: str) -> np.ndarray:
-    inp = processor(text=[text], return_tensors="pt", padding=True).to(device)
+    """
+    Advanced multi-prompt ensemble for any food text query.
+    Works for:
+      - Single word   : "pizza", "sushi", "chicken"
+      - Compound      : "chicken grill", "grilled salmon"
+      - Descriptive   : "spicy fried rice", "creamy pasta"
+      - Vague queries : "something sweet", "healthy salad"
+
+    Generates 10 prompt variations and averages them into
+    one strong embedding — gives much more accurate retrieval.
+    """
+    text = text.strip().lower()
+
+    prompts = [
+        f"a photo of {text}",
+        f"a photo of {text} food",
+        f"a close up photo of {text}",
+        f"a delicious {text} on a plate",
+        f"restaurant style {text} dish",
+        f"professional food photography of {text}",
+        f"a serving of {text}",
+        f"{text}, food photography",
+        f"a bowl or plate of {text}",
+        f"freshly prepared {text}",
+    ]
+
+    inp = processor(text=prompts, return_tensors="pt", padding=True).to(device)
     with torch.no_grad():
         feat = _safe_features(model.get_text_features(**inp))
+        feat = feat / feat.norm(dim=-1, keepdim=True)
+        # Average all 10 prompt embeddings → one robust embedding
+        feat = feat.mean(dim=0, keepdim=True)
         feat = feat / feat.norm(dim=-1, keepdim=True)
     return feat.cpu().numpy().reshape(1, -1)
 
@@ -152,9 +181,19 @@ def do_retrieve(query_emb: np.ndarray, top_k=TOP_K):
 dataset_embs, dataset_paths = build_or_load_index()
 
 # ── Routes ────────────────────────────────────────────────────────────────────
+
 @app.route("/")
 def index():
     return send_from_directory("static", "index.html")
+
+# Explicit routes so style.css and app.js load correctly from 127.0.0.1:5000
+@app.route("/style.css")
+def serve_css():
+    return send_from_directory("static", "style.css")
+
+@app.route("/app.js")
+def serve_js():
+    return send_from_directory("static", "app.js")
 
 
 @app.route("/api/retrieve/image", methods=["POST"])
@@ -163,9 +202,9 @@ def retrieve_by_image():
         file = request.files.get("image")
         if not file:
             return jsonify({"error": "No image uploaded"}), 400
-        img      = Image.open(file.stream).convert("RGB")
-        q_emb    = embed_image(img)
-        results  = do_retrieve(q_emb)
+        img       = Image.open(file.stream).convert("RGB")
+        q_emb     = embed_image(img)
+        results   = do_retrieve(q_emb)
         query_b64 = pil_to_b64(img)
         return jsonify({"query_image": query_b64, "results": results})
     except Exception as e:
@@ -197,7 +236,7 @@ def generate_and_retrieve():
             return jsonify({"error": "HF_TOKEN not set in .env"}), 400
 
         prompt = (
-            f"ultra-realistic professional food photography of  {food_name}, "
+            f"ultra-realistic professional food photography of {food_name}, "
             "soft studio lighting, shallow depth of field, clean white plate, "
             "garnished beautifully, appetizing, 4k, award-winning"
         )
@@ -206,15 +245,14 @@ def generate_and_retrieve():
             headers={"Authorization": f"Bearer {HF_TOKEN}"},
             json={"inputs": prompt},
             timeout=90
-            
         )
         if resp.status_code == 503:
             return jsonify({"error": "Model loading, wait 20s and retry"}), 503
         if resp.status_code != 200:
             return jsonify({"error": f"FLUX API error {resp.status_code}"}), 500
 
-        gen_img   = Image.open(io.BytesIO(resp.content)).convert("RGB")
-        fname     = os.path.join(GENERATED_DIR, f"{food_name.replace(' ','_')}.png")
+        gen_img = Image.open(io.BytesIO(resp.content)).convert("RGB")
+        fname   = os.path.join(GENERATED_DIR, f"{food_name.replace(' ','_')}.png")
         gen_img.save(fname)
 
         q_emb   = embed_image(gen_img)
@@ -225,7 +263,7 @@ def generate_and_retrieve():
             "results"        : results
         })
     except requests.exceptions.Timeout:
-        return jsonify({"error": "FLUX API timed out. , try again"}), 504
+        return jsonify({"error": "FLUX API timed out, try again"}), 504
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

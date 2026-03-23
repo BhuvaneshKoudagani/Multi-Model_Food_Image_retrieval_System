@@ -1,63 +1,130 @@
-const API = 'http://127.0.0.1:5000';
-let selectedFile = null;
+/* ═══════════════════════════════════════════════════════════════
+   FOODLENS — app.js
+   Fixes: details section stays hidden when not in details mode
+          results section stays hidden when not in retrieval mode
+═══════════════════════════════════════════════════════════════ */
 
-// ── Status check ──────────────────────────────────────────────────────────────
+const HOST        = window.location.hostname || '127.0.0.1';
+const API         = `http://${HOST}:5000`;
+const DETAILS_API = `http://${HOST}:5001`;
+
+let selectedFile = null;
+let currentMode  = 'image';
+
+// ── Splash Screen ─────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  const splash = document.getElementById('splash');
+  const app    = document.getElementById('app');
+
+  // After 2.6 seconds, fade out splash and reveal app
+  setTimeout(() => {
+    splash.classList.add('exit');
+    app.classList.remove('app-hidden');
+    app.classList.add('app-visible');
+  }, 2600);
+
+  // Remove splash from DOM after transition
+  setTimeout(() => {
+    splash.style.display = 'none';
+  }, 3400);
+});
+
+// ── Status Check ──────────────────────────────────────────────
 async function checkStatus() {
   try {
-    const r = await fetch(`${API}/api/status`);
+    const r = await fetch(`${API}/api/status`, { signal: AbortSignal.timeout(4000) });
     const d = await r.json();
-    document.getElementById('statusDot').className = 'status-dot online';
+    document.getElementById('statusDot').classList.add('online');
     document.getElementById('statusText').textContent =
-      `Online · ${d.indexed_images} images indexed`;
+      `Online · ${d.indexed_images ?? 0} images`;
   } catch {
-    document.getElementById('statusDot').className = 'status-dot';
-    document.getElementById('statusText').textContent = 'Backend offline';
+    document.getElementById('statusDot').classList.remove('online');
+    document.getElementById('statusText').textContent = 'Offline';
   }
 }
 checkStatus();
 setInterval(checkStatus, 15000);
 
-// ── Mode switching ────────────────────────────────────────────────────────────
+// ── Mode Switching ─────────────────────────────────────────────
 function switchMode(mode) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-  document.querySelector(`[data-mode="${mode}"]`).classList.add('active');
-  document.getElementById(`panel-${mode}`).classList.add('active');
-  hideResults();
+  currentMode = mode;
+
+  // Update nav tabs
+  document.querySelectorAll('.nav-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.mode === mode);
+  });
+
+  // Show/hide panels
+  document.querySelectorAll('.panel').forEach(p => {
+    p.classList.toggle('active', p.id === `panel-${mode}`);
+  });
+
+  // *** KEY FIX: Hide both result sections when switching modes ***
+  hideAllResults();
+  clearAllErrors();
 }
 
-// ── File select ───────────────────────────────────────────────────────────────
+function hideAllResults() {
+  document.getElementById('resultsSection').classList.remove('show');
+  document.getElementById('detailsSection').classList.remove('show');
+}
+
+function clearAllErrors() {
+  ['image', 'text', 'generate', 'details'].forEach(clearError);
+}
+
+// ── File Select & Upload ──────────────────────────────────────
 function onFileSelect(e) {
   const file = e.target.files[0];
   if (!file) return;
+  setFile(file);
+}
+
+function setFile(file) {
   selectedFile = file;
-  const prev = document.getElementById('previewImg');
-  prev.src = URL.createObjectURL(file);
-  prev.style.display = 'block';
+  const placeholder = document.getElementById('uploadPlaceholder');
+  const preview     = document.getElementById('uploadPreview');
+  const img         = document.getElementById('previewImg');
+  const nameEl      = document.getElementById('previewName');
+
+  img.src = URL.createObjectURL(file);
+  nameEl.textContent = file.name;
+  placeholder.style.display = 'none';
+  preview.style.display     = 'block';
   document.getElementById('btnImageSearch').disabled = false;
+}
+
+function clearImage(e) {
+  e.stopPropagation();
+  selectedFile = null;
+  document.getElementById('imageFile').value = '';
+  document.getElementById('uploadPlaceholder').style.display = 'block';
+  document.getElementById('uploadPreview').style.display     = 'none';
+  document.getElementById('btnImageSearch').disabled = true;
 }
 
 // Drag & drop
 const zone = document.getElementById('uploadZone');
-zone.addEventListener('dragover', e => {
-  e.preventDefault();
-  zone.classList.add('dragover');
-});
-zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('dragover'); });
+zone.addEventListener('dragleave', ()  => zone.classList.remove('dragover'));
 zone.addEventListener('drop', e => {
   e.preventDefault();
   zone.classList.remove('dragover');
   const file = e.dataTransfer.files[0];
-  if (file && file.type.startsWith('image/')) {
-    selectedFile = file;
-    const prev = document.getElementById('previewImg');
-    prev.src = URL.createObjectURL(file);
-    prev.style.display = 'block';
-    document.getElementById('btnImageSearch').disabled = false;
-  }
+  if (file && file.type.startsWith('image/')) setFile(file);
 });
 
-// ── Search by Image ───────────────────────────────────────────────────────────
+// ── Suggestion Chips ──────────────────────────────────────────
+function fillText(val) {
+  document.getElementById('textInput').value = val;
+  document.getElementById('textInput').focus();
+}
+function fillDetails(val) {
+  document.getElementById('detailsInput').value = val;
+  document.getElementById('detailsInput').focus();
+}
+
+// ── Search by Image ───────────────────────────────────────────
 async function searchByImage() {
   if (!selectedFile) return;
   clearError('image');
@@ -81,7 +148,7 @@ async function searchByImage() {
   }
 }
 
-// ── Search by Text ────────────────────────────────────────────────────────────
+// ── Search by Text ────────────────────────────────────────────
 async function searchByText() {
   const text = document.getElementById('textInput').value.trim();
   if (!text) { showError('text', 'Please enter a food description.'); return; }
@@ -103,7 +170,7 @@ async function searchByText() {
   }
 }
 
-// ── Generate & Retrieve ───────────────────────────────────────────────────────
+// ── Generate & Retrieve ───────────────────────────────────────
 async function generateAndSearch() {
   const food = document.getElementById('generateInput').value.trim();
   if (!food) { showError('generate', 'Please enter a food name.'); return; }
@@ -130,44 +197,49 @@ async function generateAndSearch() {
   }
 }
 
-// ── Render Results ────────────────────────────────────────────────────────────
+// ── Render Retrieval Results ──────────────────────────────────
 function renderResults({ type, queryImg, queryLabel, results }) {
-  const qd = document.getElementById('queryDisplay');
+  // Hide details section — only show retrieval results
+  document.getElementById('detailsSection').classList.remove('show');
 
+  // Query card
+  const qd = document.getElementById('queryDisplay');
   if (type === 'text') {
     qd.innerHTML = `
-      <div class="query-text-badge">📝</div>
-      <div class="query-info">
-        <div class="query-label">Text Query</div>
-        <div class="query-value">"${queryLabel}"</div>
+      <div class="query-icon-badge">📝</div>
+      <div class="query-meta">
+        <div class="query-meta-label">Text Query</div>
+        <div class="query-meta-val">"${escHtml(queryLabel)}"</div>
       </div>`;
   } else {
     const tag = type === 'generate' ? 'Generated Image' : 'Query Image';
     qd.innerHTML = `
-      <img src="${queryImg}" alt="query"
-           onclick="openLightbox('${queryImg}')"
-           style="cursor:zoom-in"/>
-      <div class="query-info">
-        <div class="query-label">${tag}</div>
-        <div class="query-value">${queryLabel}</div>
+      <img src="${queryImg}" alt="query" onclick="openLightbox('${queryImg}')"/>
+      <div class="query-meta">
+        <div class="query-meta-label">${tag}</div>
+        <div class="query-meta-val">${escHtml(queryLabel)}</div>
       </div>`;
   }
 
-  const grid = document.getElementById('resultsGrid');
+  // Grid
+  const grid   = document.getElementById('resultsGrid');
   grid.innerHTML = '';
   const medals = ['🥇', '🥈', '🥉'];
 
   results.forEach((item, i) => {
-    const card = document.createElement('div');
+    const card   = document.createElement('div');
     card.className = 'result-card';
     const imgSrc = `data:image/jpeg;base64,${item.image_b64}`;
     card.onclick = () => openLightbox(imgSrc);
-    const pct = Math.round(item.score * 100);
+    const pct    = Math.round(item.score * 100);
     card.innerHTML = `
-      <img src="${imgSrc}" alt="${item.category}" loading="lazy"/>
+      <img src="${imgSrc}" alt="${escHtml(item.category)}" loading="lazy"/>
       <div class="result-meta">
-        <div class="result-rank">${medals[i] || `#${item.rank}`} Rank ${item.rank}</div>
-        <div class="result-category">${item.category.replace(/_/g, ' ')}</div>
+        <div class="result-rank-row">
+          <span class="result-rank-badge">Rank ${item.rank}</span>
+          <span class="result-medal">${medals[i] || ''}</span>
+        </div>
+        <div class="result-category">${item.category.replace(/_/g,' ')}</div>
         <div class="score-bar-wrap">
           <div class="score-bar" style="width:0%" data-pct="${pct}"></div>
         </div>
@@ -179,64 +251,26 @@ function renderResults({ type, queryImg, queryLabel, results }) {
   document.getElementById('resultsCount').textContent = `${results.length} results`;
   document.getElementById('resultsSection').classList.add('show');
 
-  // Animate score bars after paint
   setTimeout(() => {
-    document.querySelectorAll('.score-bar').forEach(bar => {
-      bar.style.width = bar.dataset.pct + '%';
+    document.querySelectorAll('.score-bar').forEach(b => {
+      b.style.width = b.dataset.pct + '%';
     });
-  }, 100);
+  }, 120);
 
   document.getElementById('resultsSection')
     .scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-// ── UI helpers ────────────────────────────────────────────────────────────────
-function showLoading(msg) {
-  document.getElementById('loadingMsg').textContent = msg;
-  document.getElementById('loading').classList.add('show');
-  hideResults();
-}
-function hideLoading() {
-  document.getElementById('loading').classList.remove('show');
-}
-function hideResults() {
-  document.getElementById('resultsSection').classList.remove('show');
-}
-function showError(mode, msg) {
-  const el = document.getElementById(`err-${mode}`);
-  el.textContent = '⚠️ ' + msg;
-  el.classList.add('show');
-}
-function clearError(mode) {
-  const el = document.getElementById(`err-${mode}`);
-  el.textContent = '';
-  el.classList.remove('show');
-}
-
-// ── Lightbox ──────────────────────────────────────────────────────────────────
-function openLightbox(src) {
-  document.getElementById('lightboxImg').src = src;
-  document.getElementById('lightbox').classList.add('show');
-}
-function closeLightbox() {
-  document.getElementById('lightbox').classList.remove('show');
-}
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') closeLightbox();
-});
-
-
-// ── Food Details ──────────────────────────────────────────────────────────────
-const DETAILS_API = 'http://127.0.0.1:5001';
-
+// ── Food Details ──────────────────────────────────────────────
 async function getFoodDetails() {
   const food = document.getElementById('detailsInput').value.trim();
   if (!food) { showError('details', 'Please enter a food name.'); return; }
   clearError('details');
 
-  // Hide retrieval results, show loading
+  // Hide retrieval results when doing food details
   document.getElementById('resultsSection').classList.remove('show');
   document.getElementById('detailsSection').classList.remove('show');
+
   showLoading(`Generating "${food}" image and analysing with AI… (may take ~30s)`);
 
   try {
@@ -261,79 +295,110 @@ function renderFoodDetails({ image_b64, details }) {
   // Image
   document.getElementById('detailsImg').src = imgSrc;
 
-  // Name + cuisine
-  document.getElementById('detailsName').textContent = details.name || '—';
+  // Header
+  document.getElementById('detailsName').textContent    = details.name || '—';
   document.getElementById('detailsCuisine').textContent = details.cuisine || '';
-  document.getElementById('detailsDesc').textContent = details.description || '';
+  document.getElementById('detailsDesc').textContent    = details.description || '';
 
   // Stats
   document.getElementById('statCalories').textContent =
-    details.calories?.per_serving ? details.calories.per_serving + ' kcal' : '—';
-  document.getElementById('statPrice').textContent =
-    details.price?.restaurant || '—';
-  document.getElementById('statHomemade').textContent =
-    details.price?.homemade || '—';
-  document.getElementById('statTime').textContent =
-    details.prep_time || '—';
+    details.calories?.per_serving ? `${details.calories.per_serving} kcal` : '—';
+  document.getElementById('statPrice').textContent     = details.price?.restaurant || '—';
+  document.getElementById('statHomemade').textContent  = details.price?.homemade   || '—';
+  document.getElementById('statTime').textContent      = details.prep_time         || '—';
 
-  // Serving size
   if (details.calories?.serving_size) {
-    document.getElementById('servingSize').textContent =
-      `per ${details.calories.serving_size}`;
+    document.getElementById('servingSize').textContent = `per ${details.calories.serving_size}`;
   }
 
   // Nutrition
   const nutr = details.nutrition || {};
   const nutritionGrid = document.getElementById('nutritionGrid');
-  nutritionGrid.innerHTML = '';
   const nutrItems = [
-    { label: 'Protein',  val: nutr.protein,       unit: 'g' },
-    { label: 'Carbs',    val: nutr.carbohydrates,  unit: 'g' },
-    { label: 'Fat',      val: nutr.fat,            unit: 'g' },
-    { label: 'Fiber',    val: nutr.fiber,          unit: 'g' },
-    { label: 'Sugar',    val: nutr.sugar,          unit: 'g' },
+    { label: 'Protein', val: nutr.protein,      unit: 'g' },
+    { label: 'Carbs',   val: nutr.carbohydrates, unit: 'g' },
+    { label: 'Fat',     val: nutr.fat,           unit: 'g' },
+    { label: 'Fiber',   val: nutr.fiber,         unit: 'g' },
+    { label: 'Sugar',   val: nutr.sugar,         unit: 'g' },
   ];
-  nutrItems.forEach(n => {
-    nutritionGrid.innerHTML += `
-      <div class="nutr-item">
-        <div class="nutr-val">${n.val || '—'}${n.val ? n.unit : ''}</div>
-        <div class="nutr-label">${n.label}</div>
-      </div>`;
-  });
+  nutritionGrid.innerHTML = nutrItems.map(n => `
+    <div class="nutr-item">
+      <div class="nutr-val">${n.val ?? '—'}${n.val ? n.unit : ''}</div>
+      <div class="nutr-lbl">${n.label}</div>
+    </div>`).join('');
 
   // Ingredients
   const ingList = document.getElementById('ingredientsList');
-  ingList.innerHTML = '';
-  (details.main_ingredients || []).forEach(i => {
-    ingList.innerHTML += `<span class="ingredient-chip">${i}</span>`;
-  });
+  ingList.innerHTML = (details.main_ingredients || [])
+    .map(i => `<span class="ing-chip">${escHtml(i)}</span>`).join('');
 
   // Allergens
-  const allList = document.getElementById('allergensList');
-  allList.innerHTML = '';
+  const algList = document.getElementById('allergensList');
+  const algCard = document.getElementById('allergensCard');
+  algList.innerHTML = '';
   if (details.allergens?.length) {
-    details.allergens.forEach(a => {
-      allList.innerHTML += `<span class="allergen-chip">⚠️ ${a}</span>`;
-    });
-    document.getElementById('allergensCard').style.display = 'block';
+    algList.innerHTML = details.allergens
+      .map(a => `<span class="alg-chip">⚠️ ${escHtml(a)}</span>`).join('');
+    algCard.style.display = 'block';
   } else {
-    document.getElementById('allergensCard').style.display = 'none';
+    algCard.style.display = 'none';
   }
 
-  // Health tags
+  // Tags
   const tagsEl = document.getElementById('detailsTags');
   tagsEl.innerHTML = '';
   (details.health_tags || []).forEach(t => {
-    tagsEl.innerHTML += `<span class="details-tag green">${t}</span>`;
+    tagsEl.innerHTML += `<span class="det-tag green">${escHtml(t)}</span>`;
   });
-  const courseTag = details.course || details.cuisine;
-  if (courseTag) tagsEl.innerHTML += `<span class="details-tag">${courseTag}</span>`;
+  if (details.course || details.cuisine) {
+    tagsEl.innerHTML += `<span class="det-tag">${escHtml(details.course || details.cuisine)}</span>`;
+  }
 
   // Fun fact
   document.getElementById('funFact').textContent = details.fun_fact || '';
 
-  // Show section
+  // *** Show details section, ensure retrieval results are hidden ***
+  document.getElementById('resultsSection').classList.remove('show');
   document.getElementById('detailsSection').classList.add('show');
   document.getElementById('detailsSection')
     .scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
+
+// ── UI Helpers ────────────────────────────────────────────────
+function showLoading(msg) {
+  document.getElementById('loadingMsg').textContent = msg || 'Processing…';
+  document.getElementById('loading').classList.add('show');
+}
+function hideLoading() {
+  document.getElementById('loading').classList.remove('show');
+}
+function showError(mode, msg) {
+  const el = document.getElementById(`err-${mode}`);
+  el.textContent = '⚠️  ' + msg;
+  el.classList.add('show');
+}
+function clearError(mode) {
+  const el = document.getElementById(`err-${mode}`);
+  if (!el) return;
+  el.textContent = '';
+  el.classList.remove('show');
+}
+function escHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+// ── Lightbox ──────────────────────────────────────────────────
+function openLightbox(src) {
+  document.getElementById('lightboxImg').src = src;
+  document.getElementById('lightbox').classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('show');
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeLightbox();
+});
