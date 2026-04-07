@@ -62,10 +62,10 @@ Use this exact structure:
     "per_serving": "Estimated calories as a number only (e.g. 450)",
     "serving_size": "Standard serving size with weight (e.g. 1 plate / 300g)"
   }},
-  "price": {{
-    "restaurant": "Typical price range at a mid-range restaurant in USD (e.g. $12-$18)",
-    "homemade": "Estimated ingredient cost per serving to make at home in USD (e.g. $3-$5)",
-    "fine_dining": "Price at a high-end restaurant in USD (e.g. $25-$40)"
+"price": {{
+    "restaurant": "Typical price range at a mid-range restaurant in INR (e.g. ₹350-₹600)",
+    "homemade": "Estimated ingredient cost per serving to make at home in INR (e.g. ₹80-₹150)",
+    "fine_dining": "Price at a high-end restaurant in INR (e.g. ₹900-₹1500)"
   }},
   "nutrition": {{
     "protein": "Protein in grams as number only (e.g. 28)",
