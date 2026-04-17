@@ -1,18 +1,26 @@
 """
 Flask Backend API for Multimodal Food Retrieval System
+Supports multiple datasets: Food-101 + Indian Food Dataset
 Run: python app.py
-Then open: http://localhost:5000
+
+Dataset structure expected:
+  food-101/images/<category>/<image>.jpg
+  indian-food/images/<category>/<image>.jpg
+
+To re-index after adding the Indian food dataset:
+  python app.py --reindex-indian
 """
 
 import os
 import sys
 import io
 import base64
+import argparse
 import numpy as np
 import torch
 import requests
 from PIL import Image
-from flask import Flask, request, jsonify, send_from_directory, Response
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from sklearn.metrics.pairwise import cosine_similarity
 from transformers import CLIPProcessor, CLIPModel
@@ -20,13 +28,43 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# ── Argument parsing (for CLI re-index flags) ─────────────────────────────────
+parser = argparse.ArgumentParser(add_help=False)
+parser.add_argument("--reindex-indian", action="store_true",
+                    help="Force re-index of the Indian food dataset and merge with existing cache")
+parser.add_argument("--reindex-all", action="store_true",
+                    help="Re-index ALL datasets from scratch (slow)")
+cli_args, _ = parser.parse_known_args()
+
 app = Flask(__name__, static_folder="static")
 CORS(app, origins="*")
 
 # ── Config ────────────────────────────────────────────────────────────────────
-DATASET_PATH  = "food-101/images"
-CACHE_FILE    = "/Users/kbhuvan/Documents/FoodTextToImage/embeddings.npy"
-PATHS_CACHE   = "/Users/kbhuvan/Documents/FoodTextToImage/image_paths.npy"
+# Dataset paths — adjust these to your actual folder locations
+DATASETS = {
+    "food101": {
+        "path":  "food-101/images",          # existing Food-101 images folder
+        "label": "food101",
+    },
+    "indian": {
+        "path":  "indian-food/images",        # new Indian food images folder
+        "label": "indian",
+    },
+}
+
+# Cache files — one combined cache storing embeddings + paths from ALL datasets
+BASE_CACHE_DIR = os.path.expanduser("~/FoodRetrievalCache")
+os.makedirs(BASE_CACHE_DIR, exist_ok=True)
+
+# Per-dataset cache (so you can add new datasets without re-indexing old ones)
+DATASET_CACHE = {
+    name: {
+        "embs":  os.path.join(BASE_CACHE_DIR, f"{name}_embeddings.npy"),
+        "paths": os.path.join(BASE_CACHE_DIR, f"{name}_paths.npy"),
+    }
+    for name in DATASETS
+}
+
 BATCH_SIZE    = 32
 IMG_SIZE      = 128
 TOP_K         = 5
@@ -71,44 +109,88 @@ def pil_to_b64(img: Image.Image, fmt="JPEG") -> str:
     return base64.b64encode(buf.getvalue()).decode()
 
 
-def build_or_load_index():
-    if os.path.exists(CACHE_FILE) and os.path.exists(PATHS_CACHE):
-        embs  = np.load(CACHE_FILE)
-        paths = np.load(PATHS_CACHE, allow_pickle=True).tolist()
+def index_dataset(name: str, ds_info: dict, force: bool = False):
+    """
+    Index a single dataset. Returns (embeddings np.ndarray, paths list).
+    Uses cached version if available and force=False.
+    """
+    cache_embs  = DATASET_CACHE[name]["embs"]
+    cache_paths = DATASET_CACHE[name]["paths"]
+
+    if not force and os.path.exists(cache_embs) and os.path.exists(cache_paths):
+        embs  = np.load(cache_embs)
+        paths = np.load(cache_paths, allow_pickle=True).tolist()
         embs  = embs.reshape(len(paths), -1)
-        print(f"✅ Loaded {len(paths)} cached embeddings (dim={embs.shape[1]})")
+        print(f"  ✅ [{name}] Loaded {len(paths)} cached embeddings (dim={embs.shape[1]})")
         return embs, paths
+
+    img_dir = ds_info["path"]
+    if not os.path.isdir(img_dir):
+        print(f"  ⚠️  [{name}] Dataset folder not found: '{img_dir}' — skipping")
+        return None, []
 
     paths = [
         os.path.join(root, f)
-        for root, _, files in os.walk(DATASET_PATH)
+        for root, _, files in os.walk(img_dir)
         for f in files
         if f.lower().endswith((".jpg", ".jpeg", ".png"))
     ]
     if not paths:
-        print(f"❌ No images in '{DATASET_PATH}'")
-        sys.exit(1)
+        print(f"  ⚠️  [{name}] No images found in '{img_dir}' — skipping")
+        return None, []
 
-    print(f"Indexing {len(paths)} images...")
+    print(f"  🔄 [{name}] Indexing {len(paths)} images...")
     all_embs = []
     for start in range(0, len(paths), BATCH_SIZE):
-        batch = [
-            Image.open(p).convert("RGB").resize((IMG_SIZE, IMG_SIZE), Image.BILINEAR)
-            for p in paths[start:start+BATCH_SIZE]
-        ]
+        batch_paths = paths[start:start + BATCH_SIZE]
+        batch = []
+        for p in batch_paths:
+            try:
+                batch.append(
+                    Image.open(p).convert("RGB").resize((IMG_SIZE, IMG_SIZE), Image.BILINEAR)
+                )
+            except Exception:
+                # Replace corrupt/unreadable image with a blank one so batch size stays consistent
+                batch.append(Image.new("RGB", (IMG_SIZE, IMG_SIZE)))
+
         inp = processor(images=batch, return_tensors="pt", padding=True).to(device)
         with torch.no_grad():
             feat = _safe_features(model.get_image_features(**inp))
             feat = feat / feat.norm(dim=-1, keepdim=True)
         all_embs.append(feat.cpu().numpy())
-        print(f"  [{min(start+BATCH_SIZE,len(paths))}/{len(paths)}]", end="\r")
+        done = min(start + BATCH_SIZE, len(paths))
+        print(f"    [{done}/{len(paths)}]", end="\r")
 
     print()
     embs = np.vstack(all_embs)
-    np.save(CACHE_FILE, embs)
-    np.save(PATHS_CACHE, np.array(paths, dtype=object))
-    print(f"✅ Index built: {embs.shape}")
+    np.save(cache_embs,  embs)
+    np.save(cache_paths, np.array(paths, dtype=object))
+    print(f"  ✅ [{name}] Index built: {embs.shape}, saved to {cache_embs}")
     return embs, paths
+
+
+def build_or_load_combined_index():
+    """
+    Build / load the combined index across ALL configured datasets.
+    Respects CLI flags --reindex-indian and --reindex-all.
+    """
+    all_embs  = []
+    all_paths = []
+
+    for name, ds_info in DATASETS.items():
+        force = cli_args.reindex_all or (cli_args.reindex_indian and name == "indian")
+        embs, paths = index_dataset(name, ds_info, force=force)
+        if embs is not None and len(paths) > 0:
+            all_embs.append(embs)
+            all_paths.extend(paths)
+
+    if not all_embs:
+        print("❌ No datasets could be loaded. Check your dataset paths.")
+        sys.exit(1)
+
+    combined_embs = np.vstack(all_embs)
+    print(f"\n✅ Combined index: {combined_embs.shape[0]} images across {len(all_embs)} dataset(s)")
+    return combined_embs, all_paths
 
 
 def embed_image(img: Image.Image) -> np.ndarray:
@@ -120,38 +202,64 @@ def embed_image(img: Image.Image) -> np.ndarray:
     return feat.cpu().numpy().reshape(1, -1)
 
 
+# Known Indian food keywords for prompt enhancement
+INDIAN_FOOD_KEYWORDS = {
+    "biryani", "dal", "daal", "curry", "paneer", "samosa", "dosa", "idli",
+    "vada", "pav", "bhaji", "roti", "naan", "paratha", "chapati", "sabzi",
+    "palak", "matar", "rajma", "chole", "aloo", "gobi", "baingan", "kadai",
+    "korma", "vindaloo", "masala", "tikka", "tandoori", "halwa", "kheer",
+    "gulab", "jamun", "jalebi", "ladoo", "barfi", "rasgulla", "payasam",
+    "pongal", "uttapam", "appam", "poha", "upma", "dhokla", "kachori",
+    "pakora", "bhel", "puri", "chaat", "lassi", "chai", "rasam", "sambhar",
+    "avial", "kootu", "thoran", "pulao", "kofta", "nihari", "keema",
+    "mutton", "seekh", "kebab", "biriyani", "hyderabadi",
+}
+
+
+def is_indian_food(text: str) -> bool:
+    words = set(text.strip().lower().split())
+    return bool(words & INDIAN_FOOD_KEYWORDS)
+
+
 def embed_text(text: str) -> np.ndarray:
     """
     Advanced multi-prompt ensemble for any food text query.
-    Works for:
-      - Single word   : "pizza", "sushi", "chicken"
-      - Compound      : "chicken grill", "grilled salmon"
-      - Descriptive   : "spicy fried rice", "creamy pasta"
-      - Vague queries : "something sweet", "healthy salad"
-
-    Generates 10 prompt variations and averages them into
-    one strong embedding — gives much more accurate retrieval.
+    Automatically uses India-specific prompts for Indian food queries.
     """
     text = text.strip().lower()
+    indian = is_indian_food(text)
 
-    prompts = [
-        f"a photo of {text}",
-        f"a photo of {text} food",
-        f"a close up photo of {text}",
-        f"a delicious {text} on a plate",
-        f"restaurant style {text} dish",
-        f"professional food photography of {text}",
-        f"a serving of {text}",
-        f"{text}, food photography",
-        f"a bowl or plate of {text}",
-        f"freshly prepared {text}",
-    ]
+    if indian:
+        prompts = [
+            f"a photo of {text}",
+            f"a photo of Indian {text}",
+            f"a close up photo of {text}",
+            f"authentic Indian {text} served in a bowl or plate",
+            f"traditional Indian {text}, food photography",
+            f"restaurant style Indian {text}",
+            f"a serving of {text}, Indian cuisine",
+            f"homemade {text}, Indian food",
+            f"professional food photography of Indian {text}",
+            f"freshly prepared {text}, Indian dish",
+        ]
+    else:
+        prompts = [
+            f"a photo of {text}",
+            f"a photo of {text} food",
+            f"a close up photo of {text}",
+            f"a delicious {text} on a plate",
+            f"restaurant style {text} dish",
+            f"professional food photography of {text}",
+            f"a serving of {text}",
+            f"{text}, food photography",
+            f"a bowl or plate of {text}",
+            f"freshly prepared {text}",
+        ]
 
     inp = processor(text=prompts, return_tensors="pt", padding=True).to(device)
     with torch.no_grad():
         feat = _safe_features(model.get_text_features(**inp))
         feat = feat / feat.norm(dim=-1, keepdim=True)
-        # Average all 10 prompt embeddings → one robust embedding
         feat = feat.mean(dim=0, keepdim=True)
         feat = feat / feat.norm(dim=-1, keepdim=True)
     return feat.cpu().numpy().reshape(1, -1)
@@ -165,11 +273,11 @@ def do_retrieve(query_emb: np.ndarray, top_k=TOP_K):
     scores  = cosine_similarity(q, db)[0]
     top_idx = scores.argsort()[::-1][:top_k]
     results = []
-    for idx in top_idx:
-        img   = Image.open(dataset_paths[idx]).convert("RGB")
-        cat   = os.path.basename(os.path.dirname(dataset_paths[idx]))
+    for rank, idx in enumerate(top_idx):
+        img = Image.open(dataset_paths[idx]).convert("RGB")
+        cat = os.path.basename(os.path.dirname(dataset_paths[idx]))
         results.append({
-            "rank"     : int(top_idx.tolist().index(idx)) + 1,
+            "rank"     : rank + 1,
             "score"    : round(float(scores[idx]), 4),
             "category" : cat,
             "image_b64": pil_to_b64(img)
@@ -177,8 +285,9 @@ def do_retrieve(query_emb: np.ndarray, top_k=TOP_K):
     return results
 
 
-# ── Load index at startup ─────────────────────────────────────────────────────
-dataset_embs, dataset_paths = build_or_load_index()
+# ── Load combined index at startup ────────────────────────────────────────────
+print("\n=== Building / Loading Combined Index ===")
+dataset_embs, dataset_paths = build_or_load_combined_index()
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 @app.route("/")
@@ -225,10 +334,17 @@ def retrieve_by_text():
 
 def build_flux_prompt(food_name: str) -> str:
     """
-    Build a precise FLUX prompt based on what the food actually is.
-    Prevents random garnishes/tomatoes being added to drinks or simple items.
+    Build a precise FLUX prompt — Indian food gets a specialized prompt.
     """
     name = food_name.strip().lower()
+
+    if is_indian_food(name):
+        return (
+            f"ultra-realistic professional food photography of authentic Indian {food_name}, "
+            f"traditional presentation in appropriate Indian serving dish or plate, "
+            f"vibrant colors, spices visible, soft warm studio lighting, "
+            f"shallow depth of field, photorealistic, 4k"
+        )
 
     beverages = [
         "water", "sparkling water", "mineral water", "juice", "orange juice",
@@ -294,7 +410,7 @@ def generate_and_retrieve():
             return jsonify({"error": f"FLUX API error {resp.status_code}"}), 500
 
         gen_img = Image.open(io.BytesIO(resp.content)).convert("RGB")
-        fname   = os.path.join(GENERATED_DIR, f"{food_name.replace(' ','_')}.png")
+        fname   = os.path.join(GENERATED_DIR, f"{food_name.replace(' ', '_')}.png")
         gen_img.save(fname)
 
         q_emb   = embed_image(gen_img)
@@ -312,11 +428,20 @@ def generate_and_retrieve():
 
 @app.route("/api/status")
 def status():
+    # Count per-dataset image counts from loaded paths
+    dataset_counts = {}
+    for name, ds_info in DATASETS.items():
+        dataset_counts[name] = sum(
+            1 for p in dataset_paths
+            if os.path.abspath(p).startswith(os.path.abspath(ds_info["path"]))
+        )
+
     return jsonify({
-        "status"        : "ok",
-        "device"        : device,
-        "indexed_images": len(dataset_paths),
-        "hf_token_set"  : bool(HF_TOKEN)
+        "status"         : "ok",
+        "device"         : device,
+        "indexed_images" : len(dataset_paths),
+        "datasets"       : dataset_counts,
+        "hf_token_set"   : bool(HF_TOKEN)
     })
 
 
